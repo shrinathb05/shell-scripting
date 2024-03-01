@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -x
+
 #Directory path
 BASE="/mnt/e/Devops/#scripts/scripts"
 
@@ -13,5 +15,6 @@ do
 	then
 		git add .
 		git commit -m "$commit_message"
+		git push -u origin main
 	fi
 done
