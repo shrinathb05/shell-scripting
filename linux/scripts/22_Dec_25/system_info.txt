@@ -1,0 +1,4 @@
+User: shri
+host: shri
+Mon Dec 22 06:56:15 PM IST 2025
+ 18:56:15 up 45 min,  1 user,  load average: 0.15, 0.16, 0.18
