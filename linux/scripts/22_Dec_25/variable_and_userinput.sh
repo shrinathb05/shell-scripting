@@ -22,7 +22,7 @@ fi
 echo
 echo "-------------------------------------------------------------------------------------------------"
 echo
-#comment
+
 
 # Accept a port number and check if it's open
 read -p "Enter the port: " port
@@ -36,9 +36,36 @@ fi
 echo
 echo "-------------------------------------------------------------------------------------------------"
 echo
-comment
+
 
 # Read username and display it's home directory
 read -p "Enter username: " user
 eval echo "~$user"
 
+echo
+echo "-------------------------------------------------------------------------------------------------"
+echo
+
+
+# Take input for a service name and check it's status
+read -p "Enter Service name: " svc
+sudo systemctl status $svc
+if [[ $? -eq 0 ]]; then
+	echo "The $svc is running !!!"
+else
+	echo " The $svc is not running"
+fi
+echo
+echo "-------------------------------------------------------------------------------------------------"
+echo
+comment
+
+# Ask for a package name and check if installed
+read -p "Enter package: " pkg
+dpkg -l | grep "$pkg"
+if [[ $? -eq 0 ]]; then
+	echo "Package $pkg is installed"
+else
+	echo "Package $pkg is not installed"
+fi
+echo	
