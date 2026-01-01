@@ -185,7 +185,5 @@ else:
 
 📌 Complete **ALL 25 exercises**
 📌 Write real Python scripts
-📌 Ask questions if stuck
-📌 When done, reply:
 
 > **DAY 2 COMPLETED**
