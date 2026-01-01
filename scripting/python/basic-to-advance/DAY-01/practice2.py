@@ -47,12 +47,12 @@ print(" ".join(string_example))
 
 # 11. Store a log line and check if `"WARNING"` exists.
 log = "Alert! Warning: the /root directory spce is full!!!!"
-print("Warning" in log)
+print("warning" in log.lower())
 
 
 # 12. Replace IP `192.168.1.10` with `192.168.1.20`.
 ip_addr = "192.168.1.10"
-print(ip_addr.replace("192.168.1.10", "92.168.1.20"))
+print(ip_addr.replace("192.168.1.10", "192.168.1.20"))
 
 # 13. Extract service name from `"service=nginx status=running"`.
 service_info = "service=nginx status=running"
@@ -70,8 +70,8 @@ print(service_info[service_info.find("nginx"):service_info.find("nginx")+5])
 print(service_info[service_info.find("running"):service_info.find("running")+7])
 print(service_info[service_info.index("nginx"):service_info.index("nginx")+5])
 print(service_info[service_info.index("running"):service_info.index("running")+7])
-print(service_info.encode()[8:13].decode())
-print(service_info.encode()[25:32].decode())
+print(service_info.encode()[8:13].decode()) # not for production
+print(service_info.encode()[25:32].decode()) # not for production
 
 
 # 14. Split file path `"/var/log/syslog"`.
@@ -166,16 +166,18 @@ print(action)
 
 # 25. Replace sensitive data `"password=123"` → `"password=****"`.
 data = "password123"
-print(data.replace("password123", "***********"))
+print(data.replace("123", "****"))
 
 # 26. Count how many times `"ERROR"` appears.
 enter_text = input("Enter the error mesasge: ")
-print(enter_text.count("error"))
+print(enter_text.lower().count("error"))
 
 
 # 27. Extract filename from path.
 file_path = "var/log/sys.log"
-file_name = file_path.split("/")[2]
+file_name = file_path.split("/")[2] # less use in production
+file_name = file_path.split("/")[-1] # Better practice for production
+
 print(file_name)
 
 # 28. Build a status message using f-strings.
