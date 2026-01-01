@@ -1,5 +1,5 @@
  ## 🟢 LEVEL 1 – STRING BASICS (1–10)
-'''
+
 # 1. Store your name as a string and print it.
 name = "Shrinath Bhosale"
 print(f"My name is {name}")
@@ -172,7 +172,6 @@ print(data.replace("password123", "***********"))
 enter_text = input("Enter the error mesasge: ")
 print(enter_text.count("error"))
 
-'''
 
 # 27. Extract filename from path.
 file_path = "var/log/sys.log"
