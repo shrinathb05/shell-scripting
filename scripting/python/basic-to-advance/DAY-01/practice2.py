@@ -189,3 +189,5 @@ cleaned_log = log_text.strip()
 print(cleaned_log)
 
 # 30. Print a final automation completion message.
+msg = "The automation is successfully completed..."
+print(msg)
