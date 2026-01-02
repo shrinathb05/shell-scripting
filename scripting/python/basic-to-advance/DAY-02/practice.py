@@ -1,4 +1,4 @@
-'''
+
 # topic 1
 cpu_usage = 50
 print(cpu_usage > 34)
@@ -30,7 +30,7 @@ else:
 env = "prod"
 cpu = 90
 
-if env == "prod" and cpu > 90:
+if env == "prod" and cpu > 80:
 	print("Critical Alert !: need to check asap")
 	
 # Real scenario example
@@ -40,7 +40,7 @@ if "error" in log.lower():
 	print("Alert: Issue is there in logs")
 else:
 	print("System is normal")
-'''
+
 #-----------------------------------------------------------------------------------------
 
 # ## 🟢 LEVEL 1 – BASIC CONDITIONS (1–8)
@@ -55,7 +55,7 @@ else:
 
 # 2. Check if CPU usage is above 80.
 cpu_usage = 80
-if cpu_usage > 70:
+if cpu_usage > 80:
 	print(f"It's critical the cpu is reached at {cpu_usage}% is in critical condition")
 else:
 	print("System is working fine")
@@ -100,8 +100,8 @@ else:
 
 
 # 8. Print message if value is not equal to zero.
-x = 0
-if x == 0:
+
+if x != 0:
 	print(f"The value {x} is not equal to zero")
 else:
 	print(f"The value {x} is equal to zero")
@@ -151,12 +151,11 @@ else:
 cpu = 90
 mem = 85
 
-if cpu < 75:
-	print("The CPU is working fine..")
-elif mem < 65:
-	print (f"The Memory working fine...")
+if cpu > 80 and mem > 75:
+    print("ALERT: CPU and Memory are high")
 else:
-	print(f"The CPU is reached at {cpu} and Memory is at {mem}% are both high! level...")
+    print("System is stable")
+
 # 15. Skip deployment if env != `"prod"`.
 env = "prod"
 
@@ -187,12 +186,63 @@ else:
 # ## 🔵 LEVEL 3 – PRODUCTION LOGIC (18–25)
 
 # 18. Check multiple service statuses.
+service1 = 'Running'
+service2 = 'Started'
+service3 = 'Stopped'
+
+if service1 != "Running" or service2 != "Started" or service3 != 'Stopped':
+	print("One or more services are down")
+else:
+	print("All service is running..")
+
 # 19. Decide backup based on day.
+day = "sunday"
+if day == "sunday":
+	print(f"today is {day} performing weekly backup")
+else:
+	print("Performing the daily incremental backup")
+
 # 20. Alert if log contains `"ERROR"` or `"FAILED"`.
+log = "ERROR: Deployment FAILED"
+if "error" in log.loewr() or "failed" in log.lower():
+	print("ALERT! issue found in logs")
+
 # 21. Validate username input.
+user = input("Enter your name: ").strip()
+if user:
+	print(f"Hi! {user}, Welcome to our team")
+else:
+	print("Invalid username")
+
 # 22. Block script if environment is `"test"`.
+env = "prod"
+if env == "test":
+	print("The selected env is test environment blocking the script execution.......")
+else:
+	print("The selected environment is prod proceeding with script execution....")
+
 # 23. Decide scaling based on CPU.
+cpu_usage = 85
+if cpu_usage > 80:
+	print("The CPU is high! please check as soon as possible ............!")
+else:
+	print("The CPU is fine no need of scaling")
+
 # 24. Perform action only if user confirms `"yes"`.
+user = input("Write your answer in Yes/No: ")
+if user.lower() == "yes":
+	print(f"The user given {user} answer and it;s correct")
+else:
+	print(f"The user given {user} answer and it;s not correct")
+
 # 25. Print final status based on multiple conditions.
 
+cpu = 80
+mem = 75
+disk = 85
+
+if cpu < 85 and mem < 80 and disk < 90:
+	print("The all services are working fine")
+else:
+	print("Form the 3 services any one is in critical condition")
 # ---
