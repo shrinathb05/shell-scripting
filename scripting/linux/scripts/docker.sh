@@ -39,7 +39,7 @@ project_setup() {
 	
 	echo "Starting Docker Container........................................."
 	sleep 3s
-	docker run -d --rm -p 8083:80 --name webs web:03
+	docker run -d --rm -p 8083:8000 --name webs web:03
 	sleep 3
 }
 COMMENT
