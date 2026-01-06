@@ -1,5 +1,5 @@
 
----
+<!-- --- -->
 
 # 📄 DAY 3 – (WITH 30+ EXERCISES)
 
@@ -30,7 +30,7 @@ for i in range(1, 6):
     print(i)
 ````
 
-### DevOps Example
+<!-- ### DevOps Example -->
 
 ```python
 servers = ["web1", "web2", "db1"]
@@ -143,7 +143,7 @@ This pattern is used everywhere in production.
 
 ---
 
-# 🧪 DAY 3 – PRACTICE EXERCISES (35 TOTAL)
+<!-- # 🧪 DAY 3 – PRACTICE EXERCISES (35 TOTAL) -->
 
 ## 🟢 LEVEL 1 – LOOP BASICS (1–12)
 
@@ -163,7 +163,7 @@ This pattern is used everywhere in production.
 ---
 
 ## 🟡 LEVEL 2 – LINUX + DEVOPS (13–24)
-
+<!-- 
 13. Loop through files from `ls`
 14. Count number of files
 15. Loop through `/etc` directory
@@ -175,12 +175,12 @@ This pattern is used everywhere in production.
 21. Skip inactive services
 22. Break loop on critical alert
 23. Print deployment steps
-24. Loop through directories in `/var/log`
+24. Loop through directories in `/var/log` -->
 
 ---
 
 ## 🔵 LEVEL 3 – PRODUCTION AUTOMATION (25–35)
-
+<!-- 
 25. Retry service start until success
 26. Monitor disk usage in loop
 27. Alert if usage exceeds threshold
@@ -193,7 +193,7 @@ This pattern is used everywhere in production.
 34. Build monitoring loop with summary
 35. Final automation loop with report
 
----
+--- -->
 
 ## ❌ Common Mistakes
 
@@ -228,4 +228,4 @@ Today you mastered:
 
 This is **core DevOps automation skill**.
 
-```
+<!-- ``` -->
