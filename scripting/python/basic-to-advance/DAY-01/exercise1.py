@@ -1,21 +1,21 @@
-# 🐧 DAY 1 (LINUX MODE)
+# # 🐧 DAY 1 (LINUX MODE)
 
-## Python Basics + Strings using Ubuntu
+# ## Python Basics + Strings using Ubuntu
 
-🎯 Goal:
-Learn Python basics while interacting with the Linux system.
+# 🎯 Goal:
+# Learn Python basics while interacting with the Linux system.
 
----
+# ---
 
-## 🟢 DAY 1 – LINUX PRACTICE (20 EXERCISES)
+# ## 🟢 DAY 1 – LINUX PRACTICE (20 EXERCISES)
 
-### 🔹 Setup (Use in all scripts)
+# ### 🔹 Setup (Use in all scripts)
 
-```python
-import subprocess
-```
+# ```python
+# import subprocess
+# ```
 
----
+# ---
 
 
 # ### 🟢 LEVEL 1 – BASIC LINUX + PYTHON (1–7)
@@ -144,26 +144,26 @@ print(f"System Uptime: {time.strip()}")
 print("-" * 40)
 
 
+# # ---
 # ---
----
 
 
-## ⚠️ IMPORTANT SAFETY NOTE
+# ## ⚠️ IMPORTANT SAFETY NOTE
 
-🚫 Do **NOT** run destructive commands
-✔ Read-only commands only
-✔ Print instead of execute restarts
+# 🚫 Do **NOT** run destructive commands
+# ✔ Read-only commands only
+# ✔ Print instead of execute restarts
 
----
+# ---
 
-## 🧠 WHY THIS MATTERS (REALITY)
+# ## 🧠 WHY THIS MATTERS (REALITY)
 
-Real DevOps engineers:
+# Real DevOps engineers:
 
-* Don’t practice fake variables
-* Use **actual system data**
-* Write scripts that **observe → decide → act**
+# * Don’t practice fake variables
+# * Use **actual system data**
+# * Write scripts that **observe → decide → act**
 
-You are now training **exactly like that**.
+# You are now training **exactly like that**.
 
----
+# ---
