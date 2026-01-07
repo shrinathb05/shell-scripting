@@ -1,3 +1,5 @@
+#!/usr/bin/python3
+
 # # 🐧 DAY 1 (LINUX MODE)
 
 # ## Python Basics + Strings using Ubuntu
