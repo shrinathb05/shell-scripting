@@ -1,0 +1,77 @@
+Change Tag in Compose file
+
+# cd ${p:resource/collekto-self-cure-integration/Docker_Compose_Path}
+# sed -i "s/\(image: ${p:resource/collekto-self-cure-integration/img_name:-\)[^ ]*/\${p:resource/collekto-self-cure-integration/Tag}/" ${p:resource/collekto-self-cure-integration/Docker_Compose_File}
+
+
+cd ${p:resource/collekto-crm-frontend/Docker_Compose_Path}
+sed -i 's/\(image: ${p:resource/collekto-crm-frontend/img_name}\)[^ ]*/\1:${p:Tag}/' ${p:resource/collekto-crm-frontend/Docker_Compose_File}
+cat ${p:resource/collekto-crm-frontend/Docker_Compose_File}
+
+-----------------------------------------------------------------------------------------------
+
+Delete Image
+
+cd ${p:resource/collekto-crm-frontend/Deployment_path}
+docker images | grep ${p:resource/collekto-crm-frontend/img_name}:${p:old_image_tag}
+docker rmi -f ${p:resource/collekto-crm-frontend/img_name}:${p:old_image_tag}
+
+-----------------------------------------------------------------------------------------------
+
+Load Tar file
+
+cd ${p:resource/collekto-crm-frontend/Deployment_path}
+docker load -i ${p:resource/collekto-crm-frontend/tar_file}
+
+-----------------------------------------------------------------------------------------------
+
+Remove Existing Service/old services
+
+cd ${p:resource/collekto-crm-frontend/Docker_Compose_Path}
+docker service ls
+docker service rm ${p:resource/collekto-crm-frontend/Service_Name}
+
+-----------------------------------------------------------------------------------------------
+
+Run Image
+
+cd ${p:resource/collekto-crm-frontend/Docker_Compose_Path}
+docker stack deploy -c ${p:resource/collekto-crm-frontend/Docker_Compose_File} ${p:resource/collekto-crm-frontend/img_name}
+
+-----------------------------------------------------------------------------------------------
+
+TAR file deployment
+
+	# Clean Working Dir
+	rm -rf *
+
+	# Download Artifacts
+	
+	# Backup Current Tar File
+
+	################### Clean Old Backup files ########################
+	cd ${p:resource/collekto-crm-frontend/Backup_Path}
+	find . -type f -name "${p:resource/collekto-crm-frontend/tar_file}_*" -printf '%T@\t%p\n' |
+	sort -t $'\t' -g | 
+	head -n -2 | 
+	cut -d $'\t' -f 2- |
+	xargs rm -f
+	################### Backup deployable files ########################
+
+	# cd ${p:resource/collekto-crm-frontend/Deployment_path}
+	mv ${p:resource/collekto-crm-frontend/tar_file} ${p:resource/collekto-crm-frontend/Backup_Path}${p:resource/collekto-crm-frontend/tar_file}_`date +%Y%m%d%H%M%S`
+
+	# Deploy New Tar File
+	cd ${p:resource/collekto-crm-frontend/CodeStation_Path}
+	cp -r ${p:resource/collekto-crm-frontend/tar_file} ${p:resource/collekto-crm-frontend/Deployment_path}
+
+-----------------------------------------------------------------------------------------------
+
+Verify Image running
+
+docker service ls
+docker service ps ${p:resource/collekto-crm-frontend/Service_Name}
+
+
+Download Artifacts
+/home/ltfadmin.devops/collekto
