@@ -1,0 +1,111 @@
+pipeline {
+    agent any
+    
+    stages {
+        stage('Checkout Source Code'){
+            steps{
+                script{
+                   
+                    echo 'Checking out source code...'
+                    def scmVars = checkout([$class: 'GitSCM', branches: [[name: "Release"]], doGenerateSubmoduleConfigurations: false, extensions: [], submoduleCfg: [], userRemoteConfigs: [[credentialsId: '64e05044-c7ce-4fb7-a1cc-4f9a283dbcb8', url: "https://github.com/Larsen-and-Toubro-Financial-Services/Digital_HL_Assisted.git"]]])
+					env.GIT_COMMIT = scmVars.GIT_COMMIT
+                    env.GIT_COMMIT_MSG = sh (script: 'git log -1 --pretty=%B ${GIT_COMMIT}', returnStdout: true).trim()
+                    echo 'Successfully checkout source code repo!'
+                    sh 'java -version'
+                }
+
+            }
+        }
+   stage("SonarQube analysis") {
+          steps {
+                withSonarQubeEnv('SONAR') {
+               //sh "/home/ltfadmin.devops/sonar-scanner-5.0.1.3006-linux/bin/sonar-scanner -Dsonar.branch.name=UAT -Dsonar.projectKey=DIGITAL_HL_NEO2_UAT -Dsonar.tests=src/tests -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info -Dsonar.language=js"
+                sh "/home/ltfadmin.devops/sonar-scanner-5.0.1.3006-linux/bin/sonar-scanner -Dsonar.branch.name=Release -Dsonar.projectKey=DIGITAL_HL_NEO2 -Dsonar.language=js"
+                }
+          }
+      }
+      
+      stage("Quality Gate"){
+          steps {
+              script {
+                  timeout(time: 1, unit: 'HOURS') { // Just in case something goes wrong, pipeline will be killed after a timeout
+                  //We have added timeout so if pipeline will not complete in 1 hour then it will fail . 
+                  def qg = waitForQualityGate() // Reuse taskId previously collected by withSonarQubeEnv , check quality gate status .
+                  if (qg.status != 'OK') {
+                    //  error "Pipeline aborted due to quality gate failure: ${qg.status}"
+                      }
+                  }
+              }
+          }
+      }
+        
+        stage('Publish Artifacts to Launch') {
+            steps {
+                script {
+                    echo 'Publishing artifact to HCL launch'
+                    step([$class: 'UCDeployPublisher',
+                          siteName: 'Hcl Launch',
+                          component: [
+                              $class: 'com.urbancode.jenkins.plugins.ucdeploy.VersionHelper$VersionBlock',
+                              componentName: 'DIGITAL_HL_NEO2',
+                              createComponent: [
+                                  $class: 'com.urbancode.jenkins.plugins.ucdeploy.ComponentHelper$CreateComponentBlock',
+                                  componentTemplate: '',
+                                  componentApplication: 'DIGITAL_HL_NEO2'
+                              ],
+                              delivery: [
+                                  $class: 'com.urbancode.jenkins.plugins.ucdeploy.DeliveryHelper$Push',
+                                  pushVersion: "${JOB_BASE_NAME}_${env.BUILD_NUMBER}",
+                                  baseDir: "${WORKSPACE}",
+                                  fileIncludePatterns: '*.zip\n*.yaml',
+                                  fileExcludePatterns: '',
+                                  pushDescription: "${env.GIT_COMMIT_MSG}"
+                              ]
+                          ]
+                         ])
+                }
+            }
+        }
+         
+        stage('CleanWorkspace') {
+               steps {
+                   cleanWs()
+               }
+           }
+       
+        }
+post {
+    success {
+        script {
+            def commitMsg = env.GIT_COMMIT_MSG?.replaceAll('[\\r\\n]+', ' ') ?: ''
+            emailext (
+                to: "ltfs.devops@ltfs.com,rahul.gupta1@ltfs.com,dineshdubey@ltfs.com ",
+                subject: "✅ *****Build Status_${env.JOB_BASE_NAME}_${env.BUILD_ID}*****",
+                attachLog: true,
+                mimeType: 'text/html',
+                body: """
+                    <p><b>✅ SUCCESSFUL:</b> Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]'</p>
+                    <p>TAG_NAME: '${env.JOB_BASE_NAME}UAT${commitMsg}_${env.BUILD_NUMBER}'</p>
+                    <p>SUCCESSFULLY PUSHED TO HCL LAUNCH</p>
+                """
+            )
+        }
+    }
+    failure {
+        script {
+            def commitMsg = env.GIT_COMMIT_MSG?.replaceAll('[\\r\\n]+', ' ') ?: ''
+            emailext (
+                to: "ltfs.devops@ltfs.com,rahul.gupta1@ltfs.com,dineshdubey@ltfs.com, ",
+                attachLog: true,
+                subject: "❌ *****Build Status_${env.JOB_BASE_NAME}_${env.BUILD_ID}*****",
+                mimeType: 'text/html',
+                body: """
+                    <p><b>❌ FAILED:</b> Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]'</p>
+                    <p>TAG_NAME: '${env.JOB_BASE_NAME}UAT${commitMsg}_${env.BUILD_NUMBER}'</p>
+                    <p>FAILED TO PUSH TO HCL LAUNCH</p>
+                """
+            )
+        }
+    }
+}    
+}
