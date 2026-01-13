@@ -1,0 +1,201 @@
+@Library('common-pipeline-lib@main') _
+
+
+pipeline {
+    agent any
+    tools{
+        maven "Maven_3.8.8"
+    }
+    environment {
+        SCAN_DIR = "hardcode_scan_results"
+        ZIP_FILE = "scan_logs.zip"
+        EMAIL_TO = "ltfs.devops@ltfs.com,sankalpdevadiga@ltfs.com,prathameshpatle@ltfs.com,kunalbhere@ltfs.com,attaullahshaikh@ltfs.com,shambhuVanzara@ltfs.com,partnership.api.dev@ltfs.com"
+        EMAIL_CC = "shahdhaval@ltfs.com, spravin@ltfs.com, jayakrishnayarlagadda@ltfs.com, laxmankamble@ltfs.com, jhaaashutosh@ltfs.com"
+        GITHUB_TOKEN = credentials('github-api-token')
+       }
+    stages {
+	stage('CleanWorkspace') {
+            steps {
+                cleanWs()
+            }
+        }
+        
+    //     stage('Checkout Source Code old'){
+    //         steps{
+    //             script{
+    //                 echo 'Checking out source code...'
+				// 	def scmVars = checkout([$class: 'GitSCM', branches: [[name: "Release"]], doGenerateSubmoduleConfigurations: false, extensions: [], submoduleCfg: [], userRemoteConfigs: [[credentialsId: '64e05044-c7ce-4fb7-a1cc-4f9a283dbcb8', url: "https://github.com/Larsen-and-Toubro-Financial-Services/Digital_planet_core_service.git"]]])
+				// 	env.GIT_COMMIT = scmVars.GIT_COMMIT
+				// 	env.GIT_BRANCH = scmVars.GIT_BRANCH
+    //                 env.GIT_COMMIT_MSG = sh (script: 'git log -1 --pretty=%B ${GIT_COMMIT}', returnStdout: true).trim()
+    //                 echo 'Successfully checkout source code repo!'
+    //             }
+    //             }
+    //         }
+            stage('Checkout Source Code') {
+            steps {
+                script {
+                    echo 'Checking out source code...'
+                    def scmVars = checkout([
+                        $class: 'GitSCM', 
+                        branches: [[name: "Release"]],
+                        doGenerateSubmoduleConfigurations: false, 
+                        extensions: [], 
+                        submoduleCfg: [], 
+                        userRemoteConfigs: [[
+                            credentialsId: '64e05044-c7ce-4fb7-a1cc-4f9a283dbcb8', 
+                            url: "https://github.com/Larsen-and-Toubro-Financial-Services/Digital_planet_core_service.git"
+                        ]]
+                    ])
+                    // Set critical environment variables used by shared libraries and scripts:
+                    env.GIT_COMMIT = scmVars.GIT_COMMIT
+                    env.GIT_BRANCH = scmVars.GIT_BRANCH
+                    env.GIT_URL = scmVars.GIT_URL ?: "https://github.com/Larsen-and-Toubro-Financial-Services/Digital_planet_core_service.git"
+                    // Get clean commit message
+                    env.GIT_COMMIT_MSG = sh(
+                        script: "git log -1 --pretty=%B",
+                        returnStdout: true
+                    ).trim()
+                    echo "env.GIT_COMMIT=${env.GIT_COMMIT}, env.GIT_BRANCH=${env.GIT_BRANCH}, env.GIT_URL=${env.GIT_URL}"
+                    echo 'Successfully checked out source code repo!'
+                }
+            }
+        }
+            stage('Common Shared Stages') {
+            steps {
+                script {
+                    commonStages()
+                }
+            }
+        }
+            
+ 
+        stage("build") {
+            steps {
+             sh 'mvn clean package'
+              }
+            }
+
+            stage("SonarQube analysis") {
+            steps {
+                  withSonarQubeEnv('SONAR') {
+                 //sh 'mvn sonar:sonar -Dsonar.token=squ_c2f724ddabfc6d4ed0137c2b2ba557442bd0967e -Dsonar.branch.name=Release "-Dsonar.exclusions=**/constants/**/*.*, **/entity/**/*.*, **/redis/hash/**/*.*, **/redis/repository/**/*.*, **/repository/**/*.*, **/request/**/*.*, **/response/**/*.*"'
+                 sh 'mvn org.sonarsource.scanner.maven:sonar-maven-plugin:3.10.0.2594:sonar -f pom.xml -Dsonar.projectKey=LosLeadBre1 -Dsonar.sources=src/main -Dsonar.branch.name=UAT_Release -Dsonar.token=squ_c2f724ddabfc6d4ed0137c2b2ba557442bd0967e'
+            
+                  }
+                
+           }
+		}
+		
+		stage("Quality Gate"){
+            steps {
+                script {
+                    timeout(time: 1, unit: 'HOURS') { // Just in case something goes wrong, pipeline will be killed after a timeout
+                    //We have added timeout so if pipeline will not complete in 1 hour then it will fail . 
+                    def qg = waitForQualityGate() // Reuse taskId previously collected by withSonarQubeEnv , check quality gate status .
+                    if (qg.status != 'OK') {
+                     //   error "Pipeline aborted due to quality gate failure: ${qg.status}"
+                        }
+                    }
+                }
+            }
+        }
+
+// 			stage('Publish Artifacts to planet-core') {
+//             steps {
+//                 script {
+//                     echo 'Publishing artifact to HCL launch'
+//                     step([$class: 'UCDeployPublisher',
+//                           siteName: 'Hcl Launch',
+//                          component: [
+//                               $class: 'com.urbancode.jenkins.plugins.ucdeploy.VersionHelper$VersionBlock',
+//                               componentName: 'planet-core',
+//                               createComponent: [
+//                                   $class: 'com.urbancode.jenkins.plugins.ucdeploy.ComponentHelper$CreateComponentBlock',
+//                                   componentTemplate: '',
+//                                   componentApplication: 'Planet3.0'
+//                               ],
+//                               delivery: [
+//                                   $class: 'com.urbancode.jenkins.plugins.ucdeploy.DeliveryHelper$Push',
+//                                   pushVersion: "${JOB_BASE_NAME}_V_${BUILD_ID}",
+//                                   baseDir: "${WORKSPACE}/target/",
+//                                   fileIncludePatterns: '*.war',
+//                                   fileExcludePatterns: '',
+//                                   pushDescription: "${env.GIT_COMMIT_MSG}"
+//                               ]
+//                           ]
+//                          ])
+//                 }
+//           }
+//         }
+        stage('Publish Artifacts to HCL Launch') {
+    steps {
+        script {
+            echo 'Publishing artifact to HCL launch using shared library logic'
+           //  Call the shared library step
+            publishWithComments(
+                componentName: 'planet-core',
+                applicationName: 'Planet3.0',
+                pushVersion: "${JOB_BASE_NAME}_V_${BUILD_ID}",
+                baseDir: "${WORKSPACE}/target/",
+                fileIncludePatterns: '*.war'
+            )
+        }
+    }
+}    
+
+
+    
+        // Push Artifacts to GCP via Shared library
+        stage('Push Artifacts to GCP') {
+            steps {
+                script {
+                    def jobFolder = "Planet3.0"
+                    def gcsBasePath = "gs://sbom-reports/${jobFolder}"
+                    def projectName = "planet-core" 
+
+                    generateAndPushSbom(
+                       
+                        jobFolder: jobFolder,
+                        projectName: projectName
+                        
+                    ) {
+                        sh """
+                            gsutil cp -r ${WORKSPACE}/*.json ${gcsBasePath}
+                            echo "Files copied to: ${gcsBasePath}"
+                        """
+                    } 
+                }
+            }
+        }
+
+        stage('CleanWorkspace Post Build') {
+        steps {
+            cleanWs()
+        }
+        
+        }
+			      }
+	post {
+	success {
+		emailext (
+			to: "ltfs.devops@ltfs.com,dprakash@ltfs.com,namanan@ltfs.com,aryanpujari@ltfs.com",
+			subject: "*****${JOB_BASE_NAME}_${BUILD_ID}_Build Status*****",
+			attachLog: true,
+			body: """<p>SUCCESSFUL: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]':</p>
+	<p>TAG_NAME: '${env.JOB_BASE_NAME}UAT${env.GIT_COMMIT_MSG}_${env.BUILD_NUMBER}':</p>
+	<p>SUCCESSFULLY PUSHED TO HCL LAUNCH""",
+		)
+	}
+	failure {
+		emailext (
+			to: "ltfs.devops@ltfs.com,dprakash@ltfs.com,namanan@ltfs.com,aryanpujari@ltfs.com",
+			attachLog: true,
+			subject: "*****${JOB_BASE_NAME}_${BUILD_ID}_Build Status*****",
+			body: """<p>FAILED: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]':</p>
+	<p>TAG_NAME: '${env.JOB_BASE_NAME}UAT${env.GIT_COMMIT_MSG}_${env.BUILD_NUMBER}':</p>
+	<p>FAILED PUSHED TO HCL LAUNCH""",
+		)
+	}
+}	     
+}
