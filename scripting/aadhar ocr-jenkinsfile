@@ -1,0 +1,207 @@
+@Library('common-pipeline-lib@main') _
+
+pipeline {
+    agent any
+    tools{
+        jdk 'jdk21'
+    }
+     environment {
+        SCAN_DIR = "hardcode_scan_results"
+        ZIP_FILE = "scan_logs.zip"
+        EMAIL_CC = "ltfs.devops@ltfs.com"
+        GITHUB_TOKEN = credentials('github-api-token')
+    }
+	
+    stages {
+	
+	    stage('CleanWorkspace') {
+            steps {
+                cleanWs()
+            }
+			}
+			
+    //     stage('Checkout Source Code old'){
+    //         steps{
+    //             script{
+    //                 echo 'Checking out source code...'
+    //                 def scmVars = checkout([$class: 'GitSCM', branches: [[name: "Release2"]], doGenerateSubmoduleConfigurations: false, extensions: [], submoduleCfg: [], userRemoteConfigs: [[credentialsId: '64e05044-c7ce-4fb7-a1cc-4f9a283dbcb8', url: "https://github.com/Larsen-and-Toubro-Financial-Services/Digital_aadhar_masking_service.git"]]])
+				// 	env.GIT_COMMIT = scmVars.GIT_COMMIT
+				// 	env.GIT_BRANCH = scmVars.GIT_BRANCH
+    //                 env.GIT_COMMIT_MSG = sh (script: 'git log -1 --pretty=%B ${GIT_COMMIT}', returnStdout: true).trim()
+    //                 echo 'Successfully checkout source code repo!'
+                   
+    //             }
+
+    //             }
+    //         }
+             stage('Checkout Source Code') {
+            steps {
+                script {
+                    echo 'Checking out source code...'
+                    def scmVars = checkout([
+                        $class: 'GitSCM', 
+                        branches: [[name: "Release2"]],
+                        doGenerateSubmoduleConfigurations: false, 
+                        extensions: [], 
+                        submoduleCfg: [], 
+                        userRemoteConfigs: [[
+                            credentialsId: '64e05044-c7ce-4fb7-a1cc-4f9a283dbcb8', 
+                            url: "https://github.com/Larsen-and-Toubro-Financial-Services/Digital_aadhar_masking_service.git"
+                        ]]
+                    ])
+                    // Set critical environment variables used by shared libraries and scripts:
+                    env.GIT_COMMIT = scmVars.GIT_COMMIT
+                    env.GIT_BRANCH = scmVars.GIT_BRANCH
+                    env.GIT_URL = scmVars.GIT_URL ?: "https://github.com/Larsen-and-Toubro-Financial-Services/Digital_aadhar_masking_service.git"
+                    // Get clean commit message
+                    env.GIT_COMMIT_MSG = sh(
+                        script: "git log -1 --pretty=%B",
+                        returnStdout: true
+                    ).trim()
+                    echo "env.GIT_COMMIT=${env.GIT_COMMIT}, env.GIT_BRANCH=${env.GIT_BRANCH}, env.GIT_URL=${env.GIT_URL}"
+                    echo 'Successfully checked out source code repo!'
+                }
+            }
+        }
+
+        stage('Common Shared Stages') {
+            steps {
+                script {
+                    commonStages()
+                }
+            }
+        }
+        //stage("Pytest") {
+          //  steps {
+              //  sh "pytest"
+          //  }
+        //}
+            
+    //     stage("SonarQube analysis") {
+    //         steps {
+    //               withSonarQubeEnv('SONAR') {
+    //              sh "/home/ltfadmin.devops/sonar-scanner-5.0.1.3006-linux/bin/sonar-scanner -Dsonar.branch.name=Release -Dsonar.projectKey=Digital_aadhar_masking_service -Dsonar.sources=. -Dsonar.language=py"
+            
+    //               }
+    //         }
+    //     }
+        
+    //     stage("Quality Gate"){
+    //         steps {
+    //             script {
+				     
+    //                 timeout(time: 1, unit: 'HOURS') { // Just in case something goes wrong, pipeline will be killed after a timeout
+    //                 //We have added timeout so if pipeline will not complete in 1 hour then it will fail . 
+    //                 def qg = waitForQualityGate() // Reuse taskId previously collected by withSonarQubeEnv , check quality gate status .
+    //                 if (qg.status != 'OK') {
+    //                   //  error "Pipeline aborted due to quality gate failure: ${qg.status}"
+    //                     }
+    //                 }
+    //             }
+    //         }	
+    // }
+			
+		stage('ZIP Python Artifacts') {
+          steps {
+              script {
+                  echo 'Now proceeding to ZIP the source Artifacts'
+				  zip defaultExcludes: true, dir: "${WORKSPACE}", exclude: '.scannerwork', glob: '', zipFile: 'Digital_aadhar_masking_service.zip'
+            }
+         }
+       }
+	   
+        stage('Publish Artifacts to Digital_aadhar_masking_service') {
+            steps {
+                script {
+                    echo 'Publishing artifact to HCL launch'
+                    step([$class: 'UCDeployPublisher',
+                          siteName: 'Hcl Launch',
+                          component: [
+                              $class: 'com.urbancode.jenkins.plugins.ucdeploy.VersionHelper$VersionBlock',
+                              componentName: 'Digital_aadhar_OCR_service',
+                              createComponent: [
+                                  $class: 'com.urbancode.jenkins.plugins.ucdeploy.ComponentHelper$CreateComponentBlock',
+                                  componentTemplate: '',
+                                  componentApplication: 'Aadhar_OCR'
+                              ],
+                              delivery: [
+                                  $class: 'com.urbancode.jenkins.plugins.ucdeploy.DeliveryHelper$Push',
+                                  pushVersion: "${JOB_BASE_NAME}_${BUILD_ID}",
+                                  baseDir: "${WORKSPACE}",
+                                  fileIncludePatterns: 'Digital_aadhar_masking_service.zip',
+                                  fileExcludePatterns: '',
+                                  pushDescription: "${env.GIT_COMMIT_MSG}"
+                              ]
+                          ]
+                         ])
+                }
+            }
+        }
+        
+        // stage('Publish Artifacts to HCL Launch') {
+        //     steps {
+        //         script {
+        //             echo 'Publishing artifact to HCL launch using shared library logic'
+        //             def artifactVersion = "${JOB_BASE_NAME}_V_${BUILD_ID}"
+        //             publishWithComments(
+        //                 componentName: 'Digital_aadhar_OCR_service',
+        //                 applicationName: 'Aadhar_OCR',
+        //                 pushVersion: artifactVersion,
+        //                 baseDir: "${WORKSPACE}/target/",
+        //                 fileIncludePatterns: 'Digital_aadhar_masking_service.zip',
+        //                 pushDescription: "${env.GIT_COMMIT_MSG}"
+        //             )
+        //         }
+        //     }
+        // }
+
+        // stage('Push Artifacts to GCP') {
+        //     steps {
+        //         script {
+        //             def jobFolder = "Aadhar_OCR"
+        //             def gcsBasePath = "gs://sbom-reports/${jobFolder}"
+        //             def projectName = "Digital_aadhar_OCR_service" 
+
+        //             generateAndPushSbom(
+        //                 jobFolder: jobFolder,
+        //                 projectName: projectName
+        //             ) {
+        //                 sh """
+        //                     gsutil cp -r ${WORKSPACE}/*.json ${gcsBasePath}
+        //                     echo "Files copied to: ${gcsBasePath}"
+        //                 """
+        //             }
+        //         }
+        //     }
+        // }
+		stage('CleanWorkspace Post Build') {
+            steps {
+                cleanWs()
+            }
+            
+        }
+    }
+             post {
+        success {
+            emailext (
+                to: "ltfs.devops@ltfs.com,mohammedfardeen@ltfs.com",
+                subject: "*****Build Status_${JOB_BASE_NAME}_${BUILD_ID}*****",
+                attachLog: true,
+                body: """<p>SUCCESSFUL: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]':</p>
+		<p>TAG_NAME: '${env.JOB_BASE_NAME}_UAT_${env.GIT_COMMIT_MSG}_${env.BUILD_NUMBER}':</p>
+		<p>SUCCESSFULLY PUSHED TO https://cicd.ltfs.com/#component/1927b14f-ce6a-35b2-5ed9-1ec65e277655""",
+            )
+        }
+        failure {
+			emailext (
+                to: "ltfs.devops@ltfs.com,mohammedfardeen@ltfs.com",
+                subject: "*****Build Status_${JOB_BASE_NAME}_${BUILD_ID}*****",
+                attachLog: true,
+                body: """<p>FAILED: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]':</p>
+		<p>TAG_NAME: '${env.JOB_BASE_NAME}_UAT_${env.GIT_COMMIT_MSG}_${env.BUILD_NUMBER}':</p>
+		<p>FAILED PUSHED TO https://cicd.ltfs.com/#component/1927b14f-ce6a-35b2-5ed9-1ec65e277655""",
+            )
+        }
+    }
+         
+    }
