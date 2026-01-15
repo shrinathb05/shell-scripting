@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Define project path
-PROJECT_ROOT="/home/ltfadmin.dn/app/source/WelcomeKitApp"
+PROJECT_ROOT="/home/shri/Desktop/projects/app/var/work"
 
 # Navigate to the project directory
 cd "$PROJECT_ROOT" || { echo "Directory not found"; exit 1; }
