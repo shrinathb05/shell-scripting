@@ -53,7 +53,7 @@ prepare_remote_server() {
         find . -type f -name "maven-web-app.war_*" -printf '%T@\t%p\n' | sort -t $'\t' -g | head -n -2 | cut -d $'\t' -f 2- | xargs rm -f
 
         # Stop Tomcat (Use systemctl for LXC/Ubuntu)
-        systemctl stop tomcat || /opt/tomcat/bin/shutdown.sh || true
+        stop || /opt/tomcat/bin/shutdown.sh || true
 EOF
 }
 
@@ -65,15 +65,16 @@ deploy_war() {
 
 # 6. Start Remote Tomcat
 start_remote_tomcat() {
-    ssh ${REMOTE_USER}@${REMOTE_IP} "systemctl start tomcat || /opt/tomcat/bin/startup.sh"
+    ssh ${REMOTE_USER}@${REMOTE_IP} "start || /opt/tomcat/bin/startup.sh"
 }
 
-# --- EXECUTION ---
+--- EXECUTION ---
+clean_working_dir 
+download_artifact 
+package_build   
+prepare_remote_server   
+deploy_war 
+start_remote_tomcat 
 clean_working_dir
-download_artifact
-package_build
-prepare_remote_server
-deploy_war
-start_remote_tomcat
 
 echo "DEPLOYMENT FINISHED SUCCESSFULLY"
