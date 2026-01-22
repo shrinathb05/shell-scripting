@@ -1,0 +1,29 @@
+# Jenkins Notes
+# Jenkins Plugins
+1. Installation with default plugin
+2. Add more plugins as per use-case
+3. Plugin have interdepndencies
+4. Update plugins due to security issues
+
+# Central Online Catalog
+1. Installation
+2. Ongoing Updates
+
+# SAMPLE PIPELINE
+FETCH --> BUILD --> TEST --> PUBLISH --> DEPLOY
+
+# Jenkins CI-CD
+# 1. Standard Approach
+	- Freestyle Job
+	- Shell scripts
+	- Manual Plugin Setup
+
+# 2. Portable Script
+	- Freestyle Job
+	- Scripted Steps
+	- Offline Plugin Setup
+
+# 3. Self Contained
+	- Pipeline Jobs
+	- Declarative steps to define the pipeline
+	- Automated steps to install or handle the plugins
