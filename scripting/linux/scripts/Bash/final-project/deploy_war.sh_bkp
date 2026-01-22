@@ -1,0 +1,104 @@
+#!/bin/bash
+
+# Exit on error, print commands for debugging
+set -xe 
+
+# --- LOCAL VARIABLES ---
+WORKING_DIR="/home/shri/Desktop/projects/app/var/work"
+REPO_DIR="$WORKING_DIR/webapp-java"
+LOCAL_WAR="$REPO_DIR/target/maven-web-app.war"
+
+# --- REMOTE VARIABLES ---
+REMOTE_USER="root"
+REMOTE_IP="10.181.63.247"
+DEPLOY_DIR="/opt/tomcat/webapps"
+BACKUP_DIR="/opt/tomcat/backup"
+APP_FOLDER_NAME="maven-web-app" # This is the folder Tomcat creates from the WAR
+TIMESTAMP=$(date +%Y%m%d%H%M%S)
+REPO_URL="https://github.com/shrinathb05/webapp-java.git"
+
+# 1. Start fresh locally
+clean_local_working_dir() {
+    echo "Cleaning local workspace..."
+    rm -rf "$WORKING_DIR"/*
+}
+
+# 2. Build the project
+build_project() {
+    mkdir -p "$WORKING_DIR"
+    cd "$WORKING_DIR"
+    git clone "$REPO_URL"
+    cd "$REPO_DIR"
+    mvn clean package
+    if [ ! -f "$LOCAL_WAR" ]; then
+        echo "ERROR: Maven build failed. WAR not found."
+        exit 1
+    fi
+}
+
+# 3. Remote Cleanup, Backup, and Residue Removal
+prepare_remote_server() {
+    echo "Connecting to remote server for prep..."
+    ssh ${REMOTE_USER}@${REMOTE_IP} << EOF
+        # A. Backup existing WAR
+        if [ -f "${DEPLOY_DIR}/${APP_FOLDER_NAME}.war" ]; then
+            echo "Found existing WAR, moving to backup..."
+            mv "${DEPLOY_DIR}/${APP_FOLDER_NAME}.war" "${BACKUP_DIR}/${APP_FOLDER_NAME}.war_${TIMESTAMP}"
+        fi
+
+        # B. Clean old backups (Keep only 2)
+        cd "${BACKUP_DIR}"
+        find . -type f -name "${APP_FOLDER_NAME}.war_*" -printf '%T@\t%p\n' | sort -t $'\t' -g | head -n -2 | cut -d $'\t' -f 2- | xargs rm -f
+
+        # C. CONDITION: Check if the application directory exists
+        if [ -d "${DEPLOY_DIR}/${APP_FOLDER_NAME}" ]; then
+            echo "Directory ${APP_FOLDER_NAME} exists. Cleaning it now..."
+            rm -rf "${DEPLOY_DIR}/${APP_FOLDER_NAME}"
+        else
+            echo "No existing app directory found. Proceeding..."
+        fi
+
+        # D. Stop Tomcat
+        stop || /opt/tomcat/bin/shutdown.sh || true
+EOF
+}
+
+# 4. Push WAR to Remote
+deploy_war() {
+    echo "Pushing new WAR to Tomcat..."
+    scp "$LOCAL_WAR" ${REMOTE_USER}@${REMOTE_IP}:${DEPLOY_DIR}/
+}
+
+# 5. Start and Verify
+start_and_verify_remote() {
+    ssh ${REMOTE_USER}@${REMOTE_IP} << EOF
+        start || /opt/tomcat/bin/startup.sh || true
+        echo "Waiting for Tomcat to extract WAR..."
+        sleep 10
+        
+        # Check if the directory was created after deployment
+        if [ -d "${DEPLOY_DIR}/${APP_FOLDER_NAME}" ]; then
+            echo "SUCCESS: ${APP_FOLDER_NAME} directory is present. Deployment verified."
+        else
+            echo "ERROR: Deployment failed. Directory not created."
+            exit 1
+        fi
+EOF
+}
+
+# --- EXECUTION SEQUENCE ---
+
+clean_local_working_dir
+build_project
+prepare_remote_server
+deploy_war
+start_and_verify_remote
+
+# # Final Cleanup: Remove local build files after successful deployment
+clean_local_working_dir
+
+echo "********************************************"
+echo "   DEPLOYMENT FULLY COMPLETED SUCCESSFULLY  "
+echo "********************************************"
+
+

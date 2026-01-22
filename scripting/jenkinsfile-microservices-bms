@@ -1,0 +1,234 @@
+@Library('common-pipeline-lib@main') _
+
+pipeline {
+    agent {
+        label 'WIN_AGENT_NEW'
+    }
+    // tools {
+    //     msbuild 'MSBuild_2022' // The name you gave in Global Tool Configuration
+    // }
+	environment {
+        GIT_URL = 'https://github.com/Larsen-and-Toubro-Financial-Services/Digital_BMS_WebApi_DigitalPaymentLink_Api.git' // Replace with your repo URL
+        GIT_BRANCH = 'Release' // 'Planet_DigitalPaymentLink' //  Replace with your branch name
+        CREDENTIALS_ID = '64e05044-c7ce-4fb7-a1cc-4f9a283dbcb8' // Your Jenkins credentials ID
+        DOTNET_PATH = '"C:\\Program Files\\dotnet\\dotnet.exe"' // Path to dotnet.exe if not in PATH
+		MSBuild_PATH ='"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\MSBuild\\Current\\Bin\\MSBuild.exe"' // Path to dotnet.exe if not in PATH 
+        PROJECT_PATH = '"C:\\Jenkins\\workspace\\BMS\\Digital_BMS_WebApi_DigitalPaymentLink_Api\\"'
+    	SOLUTION_FILE = 'DigitalPaymentLink_API.sln' // Name of the solution file
+    	SONAR_PROJECT_KEY = 'DIGITAL_PAYMENT_LINK'
+    	SONAR_HOST_URL = 'https://cq.ltfinance.com'
+    	SONAR_AUTH_TOKEN = 'squ_c2f724ddabfc6d4ed0137c2b2ba557442bd0967e'
+
+        SCAN_DIR = "hardcode_scan_results"
+        ZIP_FILE = "scan_logs.zip"
+        EMAIL_CC = "shahdhaval@ltfs.com, spravin@ltfs.com, jayakrishnayarlagadda@ltfs.com, laxmankamble@ltfs.com, jhaaashutosh@ltfs.com, ltfs.devops@ltfs.com"
+    	
+		}
+			 
+    stages {
+             stage('CleanWorkspace') {
+               steps {
+                   cleanWs()
+               }
+           }
+       		
+        
+// 			stage('Checkout Source Code') {
+//              steps {
+//                  echo 'Checking out source code...'
+//                  checkout([
+//                      $class: 'GitSCM',
+//                      branches: [[name: "*/${GIT_BRANCH}"]],
+//                      userRemoteConfigs: [[
+//                          url: "${GIT_URL}",
+//                          credentialsId: "${CREDENTIALS_ID}"
+//                      ]]
+//                  ])
+//              }
+//         }
+
+         stage('Checkout Source Code') {
+            steps {
+                script {
+                    echo 'Checking out source code...'
+                    def scmVars = checkout([
+                        $class: 'GitSCM', 
+                        branches: [[name: "*/${env.GIT_BRANCH}"]],
+                        doGenerateSubmoduleConfigurations: false, 
+                        extensions: [], 
+                        submoduleCfg: [], 
+                        userRemoteConfigs: [[
+                            credentialsId: '64e05044-c7ce-4fb7-a1cc-4f9a283dbcb8', 
+                            url: "https://github.com/Larsen-and-Toubro-Financial-Services/Digital_BMS_WebApi_DigitalPaymentLink_Api.git"
+                        ]]
+                    ])
+        
+                    env.GIT_COMMIT = scmVars.GIT_COMMIT
+                    env.GIT_BRANCH = scmVars.GIT_BRANCH
+                    env.GIT_URL = scmVars.GIT_URL ?: "https://github.com/Larsen-and-Toubro-Financial-Services/Digital_BMS_WebApi_DigitalPaymentLink_Api.git"
+        
+                    // Capture the output and remove the echoed command line
+                    def rawMsg = bat(
+                        script: "@echo off & git log -1 --pretty=%%B",
+                        returnStdout: true
+                    ).trim()
+                    
+                    // Clean up any remaining whitespace or carriage returns from Windows
+                    env.GIT_COMMIT_MSG = rawMsg.split('\r?\n')[-1].trim()
+        
+                    echo "Commit: ${env.GIT_COMMIT}"
+                    echo "Message: ${env.GIT_COMMIT_MSG}"
+                    echo 'Successfully checked out source code repo!'
+                }
+            }
+        }
+        stage('Common Shared Stages') {
+            steps {
+                script {
+                    commonStages_Windows()
+                }
+            }
+        }
+        stage('Restore Dependencies') {
+            steps {
+                // Restore NuGet packages using PowerShell
+                powershell """
+                    dotnet --version
+                    dotnet restore
+                """
+            }
+        }
+
+        stage('Build') {
+            steps {
+                // Build the application using PowerShell
+                powershell "dotnet build --configuration Release"
+            }
+        }
+        stage('SonarQube Analysis') {
+            steps {
+                script {
+                    // Run SonarQube analysis
+                    powershell """
+                    dotnet sonarscanner begin /k:"Digital_BMS_WebApi_DigitalPaymentLink_Api" /d:sonar.branch.name=${GIT_BRANCH} /d:sonar.host.url="https://cq.ltfinance.com/"  /d:sonar.token="squ_c2f724ddabfc6d4ed0137c2b2ba557442bd0967e"
+                    dotnet build
+                    dotnet sonarscanner end /d:sonar.token="squ_c2f724ddabfc6d4ed0137c2b2ba557442bd0967e"
+                    """
+                }
+            }
+        }
+        // stage("Quality Gate"){
+        //     steps {
+        //         script {
+        //             timeout(time: 1, unit: 'HOURS') {
+        //                 def qg = waitForQualityGate()
+        //                 if (qg.status != 'OK') {
+        //                   //  error "Pipeline aborted due to quality gate failure: ${qg.status}"
+        //                 }
+        //             }
+        //         }
+        //     }
+        // }
+        stage('Snyk Auth') {
+            steps {
+                bat "snyk config environment https://api.us.snyk.io"
+                bat "snyk auth 845ee027-7c8f-4ab1-ac3a-933dbd281673"
+            }
+        }
+        
+        stage('Snyk Code ') {
+            steps {
+                bat 'snyk code test || exit 0'
+               // bat 'snyk code test --json | snyk-to-html -o results-code-BMS_Microservice_WebApi_DigitalPaymentLink_Api.html'
+                //bat "snyk code test --severity-threshold=low"
+
+            }
+        }
+        stage('Snyk Opensource ') {
+            steps {
+                bat "snyk monitor --all-projects || exit 0"
+                //bat "snyk test || exit 0"
+              //  bat "snyk test --json | snyk-to-html -o results-opensource-BMS_Microservice_WebApi_DigitalPaymentLink_Api.html"
+                //bat "snyk test --severity-threshold=low"
+                //bat "snyk sbom --format=cyclonedx1.4+json --json-file-output BMS_Microservice_WebApi_DigitalPaymentLink_Api.json"
+            }
+        }
+        stage('Publish') {
+            steps {
+                // Publish the application using PowerShell
+                powershell "dotnet publish --configuration Release --output ./Publish_DigitalPaymentLink_API"
+            }
+        }
+
+    stage('Publish Artifacts to HCL Launch') {
+        steps {
+            script {
+                echo 'Publishing artifact to HCL launch using shared library logic'
+                
+                // 1. Define the version string locally (as in your original Jenkinsfile)
+                def artifactVersion = "BMS_Microservice_WebApi_DigitalPaymentLink_Api_V_${env.BUILD_NUMBER}"
+    
+                // 2. Call the shared library step
+                publishWithComments(
+                    componentName: 'BMS_Microservice_WebApi_DigitalPaymentLink_Api',
+                    applicationName: 'BMS_Microservices',
+                    pushVersion: artifactVersion,
+                    baseDir: "${WORKSPACE}",
+                    fileIncludePatterns: 'Publish_DigitalPaymentLink_API\\**',
+                    fileExcludePatterns: '',
+                    pushDescription: "${env.GIT_COMMIT_MSG}"
+                )
+            }
+        }
+    }   
+        // stage('Publish Artifacts to Digital_BMS_WebApi_DigitalPaymentLink_Api') {
+        //     steps {
+        //         script {
+        //             echo 'Publishing artifact to HCL launch'
+        //             step([$class: 'UCDeployPublisher',
+        //                   siteName: 'Hcl Launch',
+        //                  component: [
+        //                       $class: 'com.urbancode.jenkins.plugins.ucdeploy.VersionHelper$VersionBlock',
+        //                       componentName: 'BMS_Microservice_WebApi_DigitalPaymentLink_Api',
+        //                       createComponent: [
+        //                           $class: 'com.urbancode.jenkins.plugins.ucdeploy.ComponentHelper$CreateComponentBlock',
+        //                           componentTemplate: '',
+        //                           componentApplication: 'BMS_Microservices'
+        //                       ],
+        //                       delivery: [
+        //                           $class: 'com.urbancode.jenkins.plugins.ucdeploy.DeliveryHelper$Push',
+        //                           pushVersion: "BMS_Microservice_WebApi_DigitalPaymentLink_Api_V${env.BUILD_NUMBER}",
+        //                           baseDir: "${WORKSPACE}",
+        //                           fileIncludePatterns: 'Publish_DigitalPaymentLink_API\\**',
+        //                           fileExcludePatterns: '',
+        //                           pushDescription: "${env.GIT_COMMIT_MSG}"
+        //                       ]
+        //                   ]
+        //                  ])
+        //         }
+        //   }
+        // }
+            }
+    post {
+        success {
+            emailext (
+                to: "ltfs.devops@ltfs.com",
+                subject: "*****Build Status_${JOB_BASE_NAME}_${BUILD_ID}*****",
+                attachLog: true,
+                body: """<p>SUCCESSFUL: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]':</p>
+		<p>TAG_NAME: '${env.JOB_BASE_NAME}__${env.BUILD_NUMBER}':</p>
+		<p>SUCCESSFULLY PUSHED""",
+            )
+        }
+        failure {
+			emailext (
+                to: "ltfs.devops@ltfs.com",
+                subject: "*****Build Status_${JOB_BASE_NAME}_${BUILD_ID}*****",
+                attachLog: true,
+                body: """<p>FAILED: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]':</p>
+		<p>TAG_NAME: '${env.JOB_BASE_NAME}_${env.BUILD_NUMBER}':</p>
+		<p>FAILED TO PUSHED""",
+            )
+        }
+    }
+}

@@ -1,0 +1,55 @@
+pipeline {
+    agent any
+    tools{
+        maven "M3"
+        jdk 'jdk8'
+    }
+
+    
+    stages {
+        stage('Checkout Source Code'){
+            steps{
+                script{
+                    echo 'Checking out source code...'
+                    def scmVars = checkout([$class: 'GitSCM', branches: [[name: "FARM_PROPERTY_RELEASE_DMZ"]], doGenerateSubmoduleConfigurations: false, extensions: [], submoduleCfg: [], userRemoteConfigs: [[credentialsId: '64e05044-c7ce-4fb7-a1cc-4f9a283dbcb8', url: "https://github.com/Larsen-and-Toubro-Financial-Services/Digital_MAS_FARM_DMZ.git"]]])
+					env.GIT_COMMIT = scmVars.GIT_COMMIT
+					env.GIT_BRANCH = scmVars.GIT_BRANCH
+                    env.GIT_COMMIT_MSG = sh (script: 'git log -1 --pretty=%B ${GIT_COMMIT}', returnStdout: true).trim()
+                    echo 'Successfully checkout source code repo!'
+                   
+                    sh 'java -version'
+                }
+
+                }
+            }
+            
+            stage('Publish Artifacts to Launch') {
+            steps {
+                script {
+                    echo 'Publishing artifact to HCL launch'
+                    step([$class: 'UCDeployPublisher',
+                          siteName: 'Hcl Launch',
+                          component: [
+                              $class: 'com.urbancode.jenkins.plugins.ucdeploy.VersionHelper$VersionBlock',
+                              componentName: 'DMZ_FARM',
+                              createComponent: [
+                                  $class: 'com.urbancode.jenkins.plugins.ucdeploy.ComponentHelper$CreateComponentBlock',
+                                  componentTemplate: '',
+                                  componentApplication: 'MAS_FARM'
+                              ],
+                              delivery: [
+                                  $class: 'com.urbancode.jenkins.plugins.ucdeploy.DeliveryHelper$Push',
+                                  pushVersion: "FARM_DMZ_Property_${env.BUILD_NUMBER}",
+                                  baseDir: "${WORKSPACE}",
+                                  fileIncludePatterns: '*.properties',
+                                  fileExcludePatterns: '',
+                                  pushDescription: "${env.GIT_COMMIT_MSG}"
+                              ]
+                          ]
+                         ])
+                }
+            }
+        }
+        }
+         
+    }

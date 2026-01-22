@@ -1,0 +1,116 @@
+pipeline {
+    agent any
+    
+    environment {
+        WORKING_DIR = "/home/ltfadmin.dn/app/Launch_Agent/var/work/Welcome_KIT"
+        BACKUP_DIR  = "/home/ltfadmin.dn/app/Launch_Agent/Backup"
+        DEPLOY_DIR  = "/home/ltfadmin.dn/ApacheTomcat/webapps"
+        APP_NAME    = "WelcomeKitApp"
+        // Correct way to capture timestamp in Jenkins
+        TIMESTAMP   = sh(script: "date +%Y%m%d%H%M%S", returnStdout: true).trim()
+        
+        GITHUB_TOKEN = credentials('my-github-token')
+        REPO_URL     = "https://api.github.com/repos/YourOrg/Repo/releases/assets/ID"
+    }
+
+    stages {
+        stage('Stage 1: Clean Working Dir') {
+            steps {
+                sh "rm -rf ${env.WORKING_DIR}/*"
+            }
+        }
+
+        stage('Stage 2: Download Artifact') {
+            steps {
+                sh """
+                    curl -L -H "Authorization: token ${GITHUB_TOKEN}" \
+                         -H "Accept: application/octet-stream" \
+                         "${env.REPO_URL}" -o "${env.WORKING_DIR}/${env.APP_NAME}.war"
+                """
+            }
+        }
+
+        stage('Stage 3: Backup & Cleanup') {
+            steps {
+                sh """
+                    # Clean old backups (keep 2)
+                    cd "${env.BACKUP_DIR}"
+                    find . -type f -name "${env.APP_NAME}.war_*" -printf '%T@\t%p\n' | \
+                    sort -t \$'\t' -g | head -n -2 | cut -d \$'\t' -f 2- | xargs rm -f
+                    
+                    # Backup current live WAR
+                    cd "${env.DEPLOY_DIR}"
+                    if [ -f "${env.APP_NAME}.war" ]; then
+                        mv "${env.APP_NAME}.war" "${env.BACKUP_DIR}/${env.APP_NAME}.war_${env.TIMESTAMP}"
+                    fi
+                """
+            }
+        }
+
+        stage('Stage 4: Wait for Approval') {
+            steps {
+                script {
+                    input message: "Prepare to deploy ${env.APP_NAME} to Production?", 
+                          ok: "Proceed with Deployment"
+                }
+            }
+        }
+
+        stage('Stage 5: Pre-Deploy Check') {
+            steps {
+                echo "Waiting for Tomcat to undeploy old folder..."
+                sh "sleep 30s"
+                script {
+                    def exists = sh(script: "[ -d ${env.DEPLOY_DIR}/${env.APP_NAME} ]", returnStatus: true)
+                    if (exists == 0) {
+                        error("Deployment Aborted: Old directory ${env.APP_NAME} still exists.")
+                    }
+                }
+            }
+        }
+
+        stage('Stage 6: Deploy') {
+            steps {
+                sh "cp ${env.WORKING_DIR}/${env.APP_NAME}.war ${env.DEPLOY_DIR}/"
+                sh "sleep 30s"
+            }
+        }
+
+        stage('Stage 7: Verify (Checksum)') {
+            steps {
+                script {
+                    // Use \$1 to ensure the shell interprets the awk variable, not Jenkins
+                    def sourceCK = sh(script: "cksum ${env.WORKING_DIR}/${env.APP_NAME}.war | awk '{print \$1}'", returnStdout: true).trim()
+                    def destCK   = sh(script: "cksum ${env.DEPLOY_DIR}/${env.APP_NAME}.war | awk '{print \$1}'", returnStdout: true).trim()
+                    
+                    if (sourceCK != destCK) {
+                        error("Checksum Mismatch! Source: ${sourceCK}, Dest: ${destCK}")
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "Deployment Successful!"
+            mail to: 'admin@domain.com',
+                 subject: "SUCCESS: ${env.APP_NAME} Deployed",
+                 body: "Build ${env.BUILD_NUMBER} finished successfully."
+        }
+        failure {
+            echo "Deployment Failed! Initiating Rollback..."
+            sh """
+                if [ -f "${env.BACKUP_DIR}/${env.APP_NAME}.war_${env.TIMESTAMP}" ]; then
+                    cp "${env.BACKUP_DIR}/${env.APP_NAME}.war_${env.TIMESTAMP}" "${env.DEPLOY_DIR}/${env.APP_NAME}.war"
+                    echo "Rollback to version ${env.TIMESTAMP} completed."
+                else
+                    echo "No backup found for version ${env.TIMESTAMP}. Manual intervention required."
+                fi
+            """
+            mail to: 'admin@domain.com',
+                 subject: "FAILED: ${env.APP_NAME} Deployment",
+                 body: "Build ${env.BUILD_NUMBER} failed. System has been rolled back."
+        }
+    }
+}

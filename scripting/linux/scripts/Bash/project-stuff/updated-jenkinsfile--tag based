@@ -1,0 +1,140 @@
+pipeline {
+    agent any
+
+    parameters {
+        // Allows you to manually type the tag name you created (e.g., v1.0.1)
+        string(name: 'TAG_NAME', defaultValue: '', description: 'Enter the GitHub Tag to deploy (e.g., v1.0.1)')
+    }
+    
+    environment {
+        WORKING_DIR  = "/home/ltfadmin.dn/app/Launch_Agent/var/work/Welcome_KIT"
+        BACKUP_DIR   = "/home/ltfadmin.dn/app/Launch_Agent/Backup"
+        DEPLOY_DIR   = "/home/ltfadmin.dn/ApacheTomcat/webapps"
+        APP_NAME     = "WelcomeKitApp"
+        
+        // Identity for your GitHub Repository
+        REPO_OWNER   = "YourGitHubUser"
+        REPO_NAME    = "WelcomeKitApp"
+        
+        TIMESTAMP    = sh(script: "date +%Y%m%d%H%M%S", returnStdout: true).trim()
+        GITHUB_TOKEN = credentials('my-github-token') 
+    }
+
+    stages {
+        stage('Stage 1: Clean Working Dir') {
+            steps {
+                sh "rm -rf ${env.WORKING_DIR}/*"
+            }
+        }
+
+        stage('Stage 2: Download Artifact from Tag') {
+            steps {
+                script {
+                    if (params.TAG_NAME == '') {
+                        error "Deployment Aborted: TAG_NAME parameter is empty."
+                    }
+
+                    echo "Fetching Asset ID for Tag: ${params.TAG_NAME}"
+                    
+                    // 1. Get the Release metadata for the tag and extract the first Asset ID
+                    def assetId = sh(script: """
+                        curl -s -H "Authorization: token ${GITHUB_TOKEN}" \
+                        https://api.github.com/repos/${env.REPO_OWNER}/${env.REPO_NAME}/releases/tags/${params.TAG_NAME} \
+                        | grep -Po '"id": \\K[0-9]+' | head -n 2 | tail -n 1
+                    """, returnStdout: true).trim()
+
+                    if (!assetId || assetId == "null") {
+                        error "Could not find a release or asset for tag ${params.TAG_NAME}. Ensure the tag exists and the .war is uploaded."
+                    }
+
+                    echo "Asset ID found: ${assetId}. Downloading..."
+
+                    // 2. Download the actual binary .war file
+                    sh """
+                        curl -L -H "Authorization: token ${GITHUB_TOKEN}" \
+                             -H "Accept: application/octet-stream" \
+                             "https://api.github.com/repos/${env.REPO_OWNER}/${env.REPO_NAME}/releases/assets/${assetId}" \
+                             -o "${env.WORKING_DIR}/${env.APP_NAME}.war"
+                    """
+                }
+            }
+        }
+
+        stage('Stage 3: Backup & Cleanup') {
+            steps {
+                sh """
+                    # Clean old backups (keep 2)
+                    cd "${env.BACKUP_DIR}"
+                    find . -type f -name "${env.APP_NAME}.war_*" -printf '%T@\t%p\n' | \
+                    sort -t \$'\t' -g | head -n -2 | cut -d \$'\t' -f 2- | xargs rm -f
+                    
+                    # Backup current live WAR
+                    cd "${env.DEPLOY_DIR}"
+                    if [ -f "${env.APP_NAME}.war" ]; then
+                        mv "${env.APP_NAME}.war" "${env.BACKUP_DIR}/${env.APP_NAME}.war_${env.TIMESTAMP}"
+                    fi
+                """
+            }
+        }
+
+        stage('Stage 4: Wait for Approval') {
+            steps {
+                script {
+                    input message: "Proceed with deploying version ${params.TAG_NAME}?", 
+                          ok: "Deploy Now"
+                }
+            }
+        }
+
+        stage('Stage 5: Pre-Deploy Check') {
+            steps {
+                echo "Waiting for Tomcat to undeploy old folder..."
+                sh "sleep 30s"
+                script {
+                    def exists = sh(script: "[ -d ${env.DEPLOY_DIR}/${env.APP_NAME} ]", returnStatus: true)
+                    if (exists == 0) {
+                        error("Deployment Aborted: Old directory ${env.APP_NAME} still exists.")
+                    }
+                }
+            }
+        }
+
+        stage('Stage 6: Deploy') {
+            steps {
+                sh "cp ${env.WORKING_DIR}/${env.APP_NAME}.war ${env.DEPLOY_DIR}/"
+                sh "sleep 30s"
+            }
+        }
+
+        stage('Stage 7: Verify (Checksum)') {
+            steps {
+                script {
+                    def sourceCK = sh(script: "cksum ${env.WORKING_DIR}/${env.APP_NAME}.war | awk '{print \$1}'", returnStdout: true).trim()
+                    def destCK   = sh(script: "cksum ${env.DEPLOY_DIR}/${env.APP_NAME}.war | awk '{print \$1}'", returnStdout: true).trim()
+                    
+                    if (sourceCK != destCK) {
+                        error("Checksum Mismatch! Source: ${sourceCK}, Dest: ${destCK}")
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "Deployment of version ${params.TAG_NAME} Successful!"
+            mail to: 'admin@domain.com',
+                 subject: "SUCCESS: ${env.APP_NAME} ${params.TAG_NAME} Deployed",
+                 body: "Build ${env.BUILD_NUMBER} for tag ${params.TAG_NAME} finished successfully."
+        }
+        failure {
+            echo "Deployment Failed! Initiating Rollback..."
+            sh """
+                if [ -f "${env.BACKUP_DIR}/${env.APP_NAME}.war_${env.TIMESTAMP}" ]; then
+                    cp "${env.BACKUP_DIR}/${env.APP_NAME}.war_${env.TIMESTAMP}" "${env.DEPLOY_DIR}/${env.APP_NAME}.war"
+                    echo "Rollback to version ${env.TIMESTAMP} completed."
+                fi
+            """
+        }
+    }
+}

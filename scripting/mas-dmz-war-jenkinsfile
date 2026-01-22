@@ -1,0 +1,245 @@
+pipeline {
+    agent any
+    tools{
+        maven "M3"
+        jdk 'jdk8'
+    }
+
+    
+    stages {
+        stage('Checkout Source Code'){
+            steps{
+                script{
+                    echo 'Checking out source code...'
+                    checkout([$class: 'GitSCM', branches: [[name: 'UAT_D2C_DMZ']], doGenerateSubmoduleConfigurations: false, extensions: [], submoduleCfg: [], userRemoteConfigs: [[credentialsId: '64e05044-c7ce-4fb7-a1cc-4f9a283dbcb8', url: 'https://github.com/Larsen-and-Toubro-Financial-Services/Digital_MAS_D2C_DMZ.git']]]) 
+                    echo 'Successfully checkout source code repo!'
+                    sh 'java -version'
+                }
+
+                }
+            }
+          
+        
+        stage('Build Artifacts') {
+          steps {
+              script {
+                  echo 'Now proceeding for source compilation using maven executable'
+                   //sh 'mvn clean package'
+                   sh 'mvn clean jacoco:prepare-agent test jacoco:report'
+
+            }
+         }
+       }
+	   stage("SonarQube analysis") {
+                tools{
+                
+                  jdk 'jdk17'
+                }
+            steps {
+                catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE'){
+                  withSonarQubeEnv('SONAR') {
+                 sh 'mvn compile sonar:sonar -Dsonar.sources=src -Dsonar.login=squ_c2f724ddabfc6d4ed0137c2b2ba557442bd0967e -Dsonar.branch.name=UAT_D2C_DMZ'
+            
+                  }
+                }   
+           }
+		}
+				stage("Quality Gate"){
+            steps {
+                script {
+                    timeout(time: 1, unit: 'HOURS') { // Just in case something goes wrong, pipeline will be killed after a timeout
+                    //We have added timeout so if pipeline will not complete in 1 hour then it will fail . 
+                    def qg = waitForQualityGate() // Reuse taskId previously collected by withSonarQubeEnv , check quality gate status .
+                    if (qg.status != 'OK') {
+                      //  error "Pipeline aborted due to quality gate failure: ${qg.status}"
+                        }
+                    }
+                }
+            }
+        }
+        stage('Publish Artifacts to UAT_MAS_DMZ') {
+            steps {
+                script {
+                    echo 'Publishing artifact to HCL launch'
+                    step([$class: 'UCDeployPublisher',
+                          siteName: 'Hcl Launch',
+                          component: [
+                              $class: 'com.urbancode.jenkins.plugins.ucdeploy.VersionHelper$VersionBlock',
+                              componentName: 'MAS_DMZ_D2C',
+                              createComponent: [
+                                  $class: 'com.urbancode.jenkins.plugins.ucdeploy.ComponentHelper$CreateComponentBlock',
+                                  componentTemplate: '',
+                                  componentApplication: 'MAS_D2C'
+                              ],
+                              delivery: [
+                                  $class: 'com.urbancode.jenkins.plugins.ucdeploy.DeliveryHelper$Push',
+                                  pushVersion: "D2C_DMZ_WarDeploy_UAT_${env.BUILD_NUMBER}",
+                                  baseDir: '/var/lib/jenkins/workspace/MAS/D2C_DMZ_WarDeploy/target/',
+                                  fileIncludePatterns: '*.war',
+                                  fileExcludePatterns: '',
+                                  pushDescription: 'Pushed from Jenkins'
+                              ]
+                          ]
+                         ])
+                }
+            }
+        }
+        
+        
+               stage('Publish Artifacts to Launch') {
+            steps {
+                script {
+                    echo 'Publishing artifact to HCL launch'
+                    step([$class: 'UCDeployPublisher',
+                          siteName: 'Hcl Launch',
+                          component: [
+                              $class: 'com.urbancode.jenkins.plugins.ucdeploy.VersionHelper$VersionBlock',
+                              componentName: 'MAS_DMZ_D2C',
+                              createComponent: [
+                                  $class: 'com.urbancode.jenkins.plugins.ucdeploy.ComponentHelper$CreateComponentBlock',
+                                  componentTemplate: '',
+                                  componentApplication: 'MAS_D2C'
+                              ],
+                              delivery: [
+                                  $class: 'com.urbancode.jenkins.plugins.ucdeploy.DeliveryHelper$Push',
+                                  pushVersion: "D2C_DMZ_PropertyDeploy_UAT_${env.BUILD_NUMBER}",
+                                  baseDir: "${WORKSPACE}",
+                                  fileIncludePatterns: '*.properties',
+                                  fileExcludePatterns: '',
+                                  pushDescription: 'Pushed from Jenkins'
+                              ]
+                          ]
+                         ])
+                }
+            }
+        }
+        
+            
+       
+        }
+         
+    }
+
+-------------------------------------------- PRE-PROD --------------------------------------------------------------------------
+
+pipeline {
+    agent any
+    tools{
+        maven "M3"
+        jdk 'jdk8'
+    }
+
+    
+    stages {
+        stage('Checkout Source Code'){
+            steps{
+                script{
+                    echo 'Checking out source code...'
+                    checkout([$class: 'GitSCM', branches: [[name: 'PREPROD_D2C_DMZ']], doGenerateSubmoduleConfigurations: false, extensions: [], submoduleCfg: [], userRemoteConfigs: [[credentialsId: '64e05044-c7ce-4fb7-a1cc-4f9a283dbcb8', url: 'https://github.com/Larsen-and-Toubro-Financial-Services/Digital_MAS_D2C_DMZ.git']]]) 
+                    echo 'Successfully checkout source code repo!'
+                    sh 'java -version'
+                }
+
+                }
+            }
+          
+        
+        stage('Build Artifacts') {
+          steps {
+              script {
+                  echo 'Now proceeding for source compilation using maven executable'
+                   sh 'mvn clean package'
+
+            }
+         }
+       }
+	   stage("SonarQube analysis") {
+                tools{
+                
+                  jdk 'jdk17'
+                }
+            steps {
+                catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE'){
+                  withSonarQubeEnv('SONAR') {
+                 sh 'mvn compile sonar:sonar -Dsonar.sources=src -Dsonar.login=squ_c2f724ddabfc6d4ed0137c2b2ba557442bd0967e -Dsonar.branch.name=UAT_D2C_DMZ'
+            
+                  }
+                }   
+           }
+		}
+		stage("Quality Gate"){
+            steps {
+                script {
+                    timeout(time: 1, unit: 'HOURS') { // Just in case something goes wrong, pipeline will be killed after a timeout
+                    //We have added timeout so if pipeline will not complete in 1 hour then it will fail . 
+                    def qg = waitForQualityGate() // Reuse taskId previously collected by withSonarQubeEnv , check quality gate status .
+                    if (qg.status != 'OK') {
+                       // error "Pipeline aborted due to quality gate failure: ${qg.status}"
+                        }
+                    }
+                }
+            }
+        }
+        stage('Publish Artifacts to UAT_MAS_DMZ') {
+            steps {
+                script {
+                    echo 'Publishing artifact to HCL launch'
+                    step([$class: 'UCDeployPublisher',
+                          siteName: 'Hcl Launch',
+                          component: [
+                              $class: 'com.urbancode.jenkins.plugins.ucdeploy.VersionHelper$VersionBlock',
+                              componentName: 'MAS_DMZ_D2C',
+                              createComponent: [
+                                  $class: 'com.urbancode.jenkins.plugins.ucdeploy.ComponentHelper$CreateComponentBlock',
+                                  componentTemplate: '',
+                                  componentApplication: 'MAS_D2C'
+                              ],
+                              delivery: [
+                                  $class: 'com.urbancode.jenkins.plugins.ucdeploy.DeliveryHelper$Push',
+                                  pushVersion: "D2C_DMZ_WarDeploy_V_${env.BUILD_NUMBER}",
+                                  baseDir: "${WORKSPACE}/target/",
+                                  fileIncludePatterns: '*.war',
+                                  fileExcludePatterns: '',
+                                  pushDescription: 'Pushed from Jenkins'
+                              ]
+                          ]
+                         ])
+                }
+            }
+        }
+        
+        
+               stage('Publish Artifacts to Launch') {
+            steps {
+                script {
+                    echo 'Publishing artifact to HCL launch'
+                    step([$class: 'UCDeployPublisher',
+                          siteName: 'Hcl Launch',
+                          component: [
+                              $class: 'com.urbancode.jenkins.plugins.ucdeploy.VersionHelper$VersionBlock',
+                              componentName: 'MAS_DMZ_D2C',
+                              createComponent: [
+                                  $class: 'com.urbancode.jenkins.plugins.ucdeploy.ComponentHelper$CreateComponentBlock',
+                                  componentTemplate: '',
+                                  componentApplication: 'MAS_D2C'
+                              ],
+                              delivery: [
+                                  $class: 'com.urbancode.jenkins.plugins.ucdeploy.DeliveryHelper$Push',
+                                  pushVersion: "D2C_DMZ_PropertyDeploy_V_${env.BUILD_NUMBER}",
+                                  baseDir: "${WORKSPACE}",
+                                  fileIncludePatterns: '*.properties',
+                                  fileExcludePatterns: '',
+                                  pushDescription: 'Pushed from Jenkins'
+                              ]
+                          ]
+                         ])
+                }
+            }
+        }
+        
+                          
+       
+        }
+         
+    }
+
