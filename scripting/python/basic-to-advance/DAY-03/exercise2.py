@@ -95,7 +95,7 @@ for i in dir:
 out = subprocess.getoutput("cat /etc/passwd | tail -5").strip().split("\n")
 for i in out:
     print(i)
-'''
+
 # 17. Loop through services and check status
 services = ["ssh", "cron", "nginx"]
 for service in services:
@@ -110,7 +110,11 @@ for service in services:
 
 
 # 18. Retry command 3 times
+        
+
 # 19. Loop through log lines
+
+
 # 20. Print CPU usage list values
 # 21. Skip inactive services
 # 22. Break loop on critical alert
@@ -122,9 +126,46 @@ for service in services:
 # ## 🔵 LEVEL 3 – PRODUCTION AUTOMATION (25–35)
 # <!-- 
 # 25. Retry service start until success
+retry = 1
+while retry <= 3:
+    status = subprocess.getoutput("systemctl is-active nginx")
+    if status == "active":
+        print("Nginx is running")
+        break
+    print("Retrying...")
+    time.sleep(2)
+    retry += 1
+else:
+    print("Nginx failed after retries as service is not active")
+    print("Starting Nginx service.......")
+    time.sleep(2)
+    subprocess.getoutput("sudo systemctl start nginx")
+    print("Nginx service started successfully") 
+
+
 # 26. Monitor disk usage in loop
+disk = subprocess.getoutput("df -h /").splitlines()
+for i in disk:
+    print(i)
+
 # 27. Alert if usage exceeds threshold
+TH = 80
+DISK = subprocess.getoutput("df -h /").splitlines()
+for i in DISK: 
+    if "Filesystem" in i:
+        continue
+    USAGE = int(i.split()[4][:-1])
+    if USAGE > TH:
+        print(f"Disk usage is very high {usage}%")
+    else:
+        print(f"Disk usage is normal {usage}%")
+'''
+
 # 28. Scan logs for ERROR
+output = subprocess.getoutput("sudo cat kern.log | grep -i error").splitlines()
+print(output)
+
+
 # 29. Stop monitoring on critical alert
 # 30. Loop through network interfaces
 # 31. Combine `if` inside `for`
