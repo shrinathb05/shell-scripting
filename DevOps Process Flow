@@ -1,0 +1,19 @@
+# Planning 
+    - Jira (issue) -> Developers (pull request) -> [approved/not approved] -> github (source code management) -> Webhook build trigger 
+
+# Continuous Integration
+    # (Build and code scan)
+    -> Jenkins 
+    -> sonarqube (code vulnerability & coverage scan) 
+    -> [pass/fail] (fail)-> return to developers
+
+# Continuous Deployment    
+    -> (pass) -> Devops Deploy tool (create version)
+    -> requestor ->  Devops Deploy tool (create version)
+    -> approvals
+        -> UAT (appowner)
+        -> PRE-PROD (AppOwner and QA)
+        -> PROD (App-Owner) (QA) (Change Management) (Release Management) (Release Executor)
+        -> DR (Release Management) (Release Executor)
+
+        
